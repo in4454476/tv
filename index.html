@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web IPTV Player</title>
+<!-- HLS.js for .m3u8 live streams -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+<link rel="icon" type="image/png" href="image/favicon.png">
+<style>
+  :root {
+    --primary-color: #800000;
+    --primary-hover: #a00000;
+    --gold-star: #fbbf24;
+    --bg-dark: #121212;
+    --bg-panel: #1e1e1e;
+    --text-light: #ffffff;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+
+  body {
+    background-color: var(--bg-dark);
+    color: var(--text-light);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* Header & Controls */
+  header {
+    background-color: var(--primary-color);
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+    flex-shrink: 0;
+    z-index: 50;
+  }
+
+  .controls-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  /* White Search Input Wrapper with Clear Button */
+  .search-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 160px;
+    display: flex;
+    align-items: center;
+  }
+
+  input[type="text"] {
+    padding: 9px 34px 9px 14px;
+    border: 1px solid #cccccc;
+    border-radius: 50px;
+    background: #ffffff;
+    color: #111111;
+    outline: none;
+    width: 100%;
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  input[type="text"]::placeholder {
+    color: #666666;
+  }
+
+  .clear-search-btn {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    color: #555555;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 2px 5px;
+    display: none;
+    transition: color 0.15s;
+  }
+
+  .clear-search-btn:hover {
+    color: #000000;
+  }
+
+  /* Equal Gol Star-Only Favorite Button */
+  button.fav-filter-circle {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.25);
+    color: #ffffff;
+    cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.18s, color 0.18s, border-color 0.18s, transform 0.12s;
+  }
+
+  button.fav-filter-circle:hover {
+    background: rgba(0, 0, 0, 0.45);
+    transform: scale(1.06);
+  }
+
+  button.fav-filter-circle.active {
+    background: #ffffff;
+    color: var(--primary-color);
+    border-color: var(--gold-star);
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
+  }
+
+  /* Main Layout */
+  .main-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Video Player Section */
+  .player-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #000000;
+    position: relative;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    min-height: 250px;
+  }
+
+  video {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    outline: none;
+    object-fit: contain;
+  }
+
+  /* Waiting / Buffering Circular Spinner (#800000) */
+  .waiting-spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 54px;
+    height: 54px;
+    margin-top: -27px;
+    margin-left: -27px;
+    border: 5px solid rgba(255, 255, 255, 0.2);
+    border-top-color: var(--primary-color);
+    border-right-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spinLoader 0.85s linear infinite;
+    z-index: 25;
+    pointer-events: none;
+    display: none;
+  }
+
+  .waiting-spinner.show {
+    display: block;
+  }
+
+  @keyframes spinLoader {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Stream Status / Notice Banner */
+  .stream-status {
+    position: absolute;
+    top: 56px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.82);
+    border: 1px solid var(--primary-color);
+    color: #f8fafc;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    z-index: 24;
+    pointer-events: none;
+    max-width: 85%;
+    text-align: center;
+    display: none;
+  }
+
+  .stream-status.show {
+    display: block;
+  }
+
+  /* Playing Channel Name (Auto hides after 3s) */
+  .now-playing {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: rgba(0, 0, 0, 0.78);
+    border-left: 3px solid var(--primary-color);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    pointer-events: none;
+    z-index: 10;
+    max-width: 65%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 0.4s ease;
+  }
+
+  .now-playing.fade-out {
+    opacity: 0;
+  }
+
+  /* Volume OSD Pop-up */
+  .volume-osd {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid var(--primary-color);
+    color: #ffffff;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    z-index: 40;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  .volume-osd.show {
+    opacity: 1;
+  }
+
+  /* Player Quick Buttons */
+  .player-top-controls {
+    position: absolute;
+    top: 12px;
+    right: 15px;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+  }
+
+  .player-btn {
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.1s, background 0.15s;
+  }
+
+  .player-btn:hover {
+    transform: scale(1.1);
+    background: var(--primary-color);
+  }
+
+  .player-fav-btn.favorited {
+    color: var(--gold-star);
+  }
+
+  /* On-Screen Touch / Mouse Overlays */
+  .osd-controls {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    z-index: 20;
+  }
+
+  .player-section:hover .osd-controls,
+  .player-section:active .osd-controls {
+    opacity: 1;
+  }
+
+  .osd-btn {
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.65);
+    color: #ffffff;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    font-size: 1.3rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+  }
+
+  .osd-btn:hover {
+    background: var(--primary-color);
+    transform: scale(1.1);
+  }
+
+  /* Responsive Ad Banner Overlay */
+  .ad-overlay {
+    position: absolute;
+    bottom: 52px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(94%, 728px);
+    z-index: 30;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .ad-overlay.hidden {
+    display: none !important;
+  }
+
+  .ad-box {
+    position: relative;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .ad-link-wrapper {
+    display: block;
+    width: 100%;
+    line-height: 0;
+  }
+
+  .ad-overlay img {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: 115px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+    background: rgba(0, 0, 0, 0.88);
+    border-radius: 8px;
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.85);
+  }
+
+  .ad-timer {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.82);
+    color: #ffffff;
+    padding: 2px 8px;
+    font-size: 0.78rem;
+    font-weight: bold;
+    border-radius: 4px;
+    z-index: 35;
+    pointer-events: none;
+  }
+
+  .ad-close-btn {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: var(--primary-color);
+    color: #ffffff;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 0.9rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 35;
+    transition: background 0.15s, transform 0.1s;
+  }
+
+  .ad-close-btn:hover {
+    background: var(--primary-hover);
+    transform: scale(1.08);
+  }
+
+  /* Sidebar Channel List */
+  .sidebar {
+    width: 350px;
+    background-color: var(--bg-panel);
+    border-left: 1px solid #333333;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .channel-count {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    background: #252525;
+    color: #cccccc;
+    border-bottom: 1px solid #333333;
+  }
+
+  .channel-list {
+    flex: 1;
+    overflow-y: auto;
+    list-style: none;
+    will-change: scroll-position;
+    transform: translateZ(0);
+  }
+
+  .channel-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid #2a2a2a;
+    cursor: pointer;
+    transition: background 0.06s linear;
+    gap: 10px;
+    contain: layout style;
+  }
+
+  .channel-item:hover, .channel-item.active {
+    background-color: var(--primary-color);
+  }
+
+  .channel-item img {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    background: #000000;
+    border-radius: 4px;
+    padding: 2px;
+    flex-shrink: 0;
+  }
+
+  .channel-info {
+    overflow: hidden;
+    flex: 1;
+  }
+
+  .channel-name {
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .channel-group {
+    font-size: 0.75rem;
+    color: #bbbbbb;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .fav-btn {
+    background: none;
+    border: none;
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 5px;
+    color: #777777;
+    transition: transform 0.1s, color 0.1s;
+    flex-shrink: 0;
+  }
+
+  .fav-btn:hover {
+    transform: scale(1.15);
+  }
+
+  .fav-btn.favorited {
+    color: var(--gold-star);
+  }
+
+  @media (max-width: 900px) {
+    .main-container {
+      flex-direction: column;
+    }
+    .player-section {
+      width: 100%;
+      height: 45vh;
+      flex-shrink: 0;
+    }
+    .ad-overlay {
+      bottom: 42px;
+      width: 94%;
+    }
+    .ad-overlay img {
+      max-height: 72px;
+      border-radius: 6px;
+    }
+    .ad-timer {
+      top: 4px;
+      left: 6px;
+      font-size: 0.72rem;
+      padding: 2px 6px;
+    }
+    .ad-close-btn {
+      top: 4px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      font-size: 0.85rem;
+    }
+    .sidebar {
+      width: 100%;
+      height: 100%;
+      border-left: none;
+      border-top: 1px solid #333333;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="controls-group">
+    <div class="search-wrapper">
+      <input type="text" id="searchInput" placeholder="Search channels..." oninput="handleSearchInput()">
+      <button class="clear-search-btn" id="clearSearchBtn" onclick="clearSearch()" title="Clear Search & Refresh">✕</button>
+    </div>
+    <button class="fav-filter-circle" id="favFilterBtn" onclick="toggleFavoriteFilter()" title="Favorites">☆</button>
+  </div>
+</header>
+
+<div class="main-container">
+  <!-- Video Player Area -->
+  <div class="player-section" id="playerSection">
+    <div class="now-playing" id="nowPlaying">Select a channel to play</div>
+    <div class="volume-osd" id="volumeOsd">Volume: 100%</div>
+    <div class="waiting-spinner" id="waitingSpinner"></div>
+    <div class="stream-status" id="streamStatus"></div>
+    
+    <!-- Player Quick Buttons -->
+    <div class="player-top-controls">
+      <button class="player-btn player-fav-btn" id="playerFavBtn" onclick="toggleCurrentChannelFavorite()" title="Toggle Favorite">☆</button>
+      <button class="player-btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+    </div>
+
+    <!-- On-Screen Controls -->
+    <div class="osd-controls">
+      <button class="osd-btn" onclick="playPreviousChannel()" title="Previous Channel">❮</button>
+      <button class="osd-btn" onclick="playNextChannel()" title="Next Channel">❯</button>
+    </div>
+
+    <video id="videoPlayer" controls autoplay playsinline ondblclick="toggleFullscreen()"></video>
+
+    <!-- Banner Ad Overlay -->
+    <div id="adOverlay" class="ad-overlay hidden">
+      <div class="ad-box">
+        <a id="adLink" class="ad-link-wrapper" href="#" target="_blank" rel="noopener noreferrer">
+          <img id="adImage" src="" alt="Advertisement">
+        </a>
+        <span class="ad-timer" id="adCountdown">10</span>
+        <button type="button" class="ad-close-btn" onclick="hideBannerAd(event)" title="Close Ad">×</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Channel List Sidebar -->
+  <div class="sidebar">
+    <div class="channel-count" id="channelCount">Loading channels...</div>
+    <ul class="channel-list" id="channelList"></ul>
+  </div>
+</div>
+
+<script src="image/ads.js"></script>
+
+<script>
+  const PLAYLIST_URL = "https://iptv-org.github.io/iptv/index.language.m3u";
+  const VOLUME_STEP = 0.02; // 4% volume step
+
+  let allChannels = [];
+  let filteredChannels = [];
+  let currentIndex = -1;
+  let currentPlayingChannel = null;
+  let favorites = JSON.parse(localStorage.getItem('iptv_favorites')) || [];
+  let savedSearchQuery = localStorage.getItem('iptv_search_query') || "";
+  let showOnlyFavorites = false;
+  let hls = null;
+  let nowPlayingTimeout = null;
+  let volumeTimeout = null;
+  let statusTimeout = null;
+  let activeItemEl = null;
+
+  const video = document.getElementById('videoPlayer');
+  const playerSection = document.getElementById('playerSection');
+  const channelListEl = document.getElementById('channelList');
+  const channelCountEl = document.getElementById('channelCount');
+  const nowPlayingEl = document.getElementById('nowPlaying');
+  const volumeOsd = document.getElementById('volumeOsd');
+  const waitingSpinner = document.getElementById('waitingSpinner');
+  const streamStatus = document.getElementById('streamStatus');
+  const playerFavBtn = document.getElementById('playerFavBtn');
+  const searchInput = document.getElementById('searchInput');
+  const clearSearchBtn = document.getElementById('clearSearchBtn');
+  const favFilterBtn = document.getElementById('favFilterBtn');
+
+  // Fisher-Yates Shuffle Function
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
+  function showSpinner() {
+    waitingSpinner.classList.add('show');
+  }
+  function hideSpinner() {
+    waitingSpinner.classList.remove('show');
+  }
+
+  function showStatusMessage(msg, duration = 3500) {
+    streamStatus.textContent = msg;
+    streamStatus.classList.add('show');
+    clearTimeout(statusTimeout);
+    if (duration > 0) {
+      statusTimeout = setTimeout(() => {
+        streamStatus.classList.remove('show');
+      }, duration);
+    }
+  }
+
+  function hideStatusMessage() {
+    clearTimeout(statusTimeout);
+    streamStatus.classList.remove('show');
+  }
+
+  video.addEventListener('loadstart', showSpinner);
+  video.addEventListener('waiting', showSpinner);
+  video.addEventListener('stalled', showSpinner);
+  video.addEventListener('playing', () => {
+    hideSpinner();
+    hideStatusMessage();
+  });
+  video.addEventListener('canplay', hideSpinner);
+  video.addEventListener('error', () => {
+    hideSpinner();
+    if (video.src) {
+      showStatusMessage("Stream unavailable or blocked in browser (CORS / HTTP)", 4000);
+    }
+  });
+
+  function syncFavFilterIcon() {
+    favFilterBtn.textContent = showOnlyFavorites ? "★" : "☆";
+    favFilterBtn.classList.toggle("active", showOnlyFavorites);
+  }
+
+  function releaseKeyboardFocus() {
+    if (document.activeElement && document.activeElement !== document.body && document.activeElement !== searchInput) {
+      document.activeElement.blur();
+    }
+    if (video) {
+      video.blur();
+    }
+  }
+
+  function showVolumeOsd(vol) {
+    const percent = Math.round(vol * 100);
+    volumeOsd.textContent = `Volume: ${percent}%`;
+    volumeOsd.classList.add('show');
+    clearTimeout(volumeTimeout);
+    volumeTimeout = setTimeout(() => {
+      volumeOsd.classList.remove('show');
+    }, 1000);
+  }
+
+  function hideBannerAd(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (typeof hideBannerAdFunction === "function") {
+      hideBannerAdFunction();
+    } else {
+      clearInterval(countdownTimer);
+      document.getElementById('adOverlay').classList.add('hidden');
+    }
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      playerSection.requestFullscreen().catch(err => {
+        console.error("Error attempting to enable fullscreen:", err.message);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+    releaseKeyboardFocus();
+  }
+
+  // Global Keyboard Navigation
+  window.addEventListener('keydown', (e) => {
+    const tag = document.activeElement ? document.activeElement.tagName : '';
+    const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    if (isTyping) return;
+
+    if (e.key === 'F11') {
+      e.preventDefault();
+      toggleFullscreen();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      e.stopPropagation();
+      stepChannelBy(-1);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      e.stopPropagation();
+      stepChannelBy(1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      video.volume = Math.min(1, +(video.volume + VOLUME_STEP).toFixed(2));
+      showVolumeOsd(video.volume);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      video.volume = Math.max(0, +(video.volume - VOLUME_STEP).toFixed(2));
+      showVolumeOsd(video.volume);
+    }
+  }, true);
+
+  function stepChannelBy(delta) {
+    const total = filteredChannels.length;
+    if (total === 0) return;
+
+    let baseIdx = currentIndex;
+    if (baseIdx < 0 || baseIdx >= total) {
+      if (currentPlayingChannel) {
+        const found = filteredChannels.findIndex(ch => ch._id === currentPlayingChannel._id);
+        baseIdx = found !== -1 ? found : 0;
+      } else {
+        baseIdx = 0;
+      }
+    }
+
+    const nextIndex = (baseIdx + delta + total) % total;
+    currentIndex = nextIndex;
+    playChannel(filteredChannels[currentIndex], true, currentIndex);
+  }
+
+  function playNextChannel() {
+    stepChannelBy(1);
+    releaseKeyboardFocus();
+  }
+
+  function playPreviousChannel() {
+    stepChannelBy(-1);
+    releaseKeyboardFocus();
+  }
+
+  function handleSearchInput() {
+    const val = searchInput.value;
+    localStorage.setItem('iptv_search_query', val);
+    clearSearchBtn.style.display = val.length > 0 ? 'block' : 'none';
+    filterChannels();
+  }
+
+  function clearSearch() {
+    searchInput.value = "";
+    localStorage.removeItem('iptv_search_query');
+    clearSearchBtn.style.display = 'none';
+    filterChannels();
+    releaseKeyboardFocus();
+  }
+
+  async function fetchAndParseM3U(url) {
+    channelCountEl.textContent = "Downloading playlist...";
+    channelListEl.innerHTML = "";
+    showSpinner();
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to load M3U URL");
+      const text = await response.text();
+      parseM3U(text);
+    } catch (err) {
+      channelCountEl.textContent = "Error: " + err.message;
+      hideSpinner();
+      console.error(err);
+    }
+  }
+
+  function parseM3U(data) {
+    const lines = data.split('\n');
+    const channels = [];
+    let currentChannel = {};
+    let idCounter = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i].trim();
+      if (line.startsWith('#EXTINF:')) {
+        const commaIndex = line.lastIndexOf(',');
+        const name = commaIndex !== -1 ? line.substring(commaIndex + 1).trim() : 'Unknown Channel';
+        
+        const logoMatch = line.match(/tvg-logo="([^"]*)"/);
+        const logo = logoMatch && logoMatch[1] ? logoMatch[1] : 'https://via.placeholder.com/40?text=TV';
+
+        const groupMatch = line.match(/group-title="([^"]*)"/);
+        const group = groupMatch && groupMatch[1] ? groupMatch[1] : 'General';
+
+        currentChannel = { name, logo, group };
+      } else if (line && !line.startsWith('#')) {
+        currentChannel.url = line;
+        currentChannel._id = idCounter++;
+        if (currentChannel.name) {
+          channels.push(currentChannel);
+        }
+        currentChannel = {};
+      }
+    }
+
+    // Shuffle channels randomly
+    allChannels = shuffleArray(channels);
+
+    if (savedSearchQuery) {
+      searchInput.value = savedSearchQuery;
+      clearSearchBtn.style.display = 'block';
+    }
+
+    filterChannels();
+
+    if (filteredChannels.length > 0) {
+      currentIndex = 0;
+      playChannel(filteredChannels[0], true, 0);
+    } else if (allChannels.length > 0) {
+      currentIndex = 0;
+      playChannel(allChannels[0], true, 0);
+    } else {
+      hideSpinner();
+    }
+  }
+
+  function renderChannels(channelsToRender) {
+    channelListEl.innerHTML = "";
+    activeItemEl = null;
+    const fragment = document.createDocumentFragment();
+
+    channelsToRender.forEach((ch, idx) => {
+      const isFav = favorites.includes(ch.url);
+      const isActive = currentPlayingChannel && currentPlayingChannel._id === ch._id;
+      
+      const li = document.createElement('li');
+      li.className = `channel-item ${isActive ? 'active' : ''}`;
+      li.dataset.index = idx;
+      if (isActive) activeItemEl = li;
+
+      const img = document.createElement('img');
+      img.src = ch.logo;
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.alt = 'logo';
+      img.onerror = function() { this.src = 'https://via.placeholder.com/40?text=TV'; };
+
+      const info = document.createElement('div');
+      info.className = 'channel-info';
+      info.onclick = () => selectAndPlayByIndex(idx);
+
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'channel-name';
+      nameDiv.textContent = ch.name;
+
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'channel-group';
+      groupDiv.textContent = ch.group;
+
+      info.appendChild(nameDiv);
+      info.appendChild(groupDiv);
+
+      const favBtn = document.createElement('button');
+      favBtn.className = `fav-btn ${isFav ? 'favorited' : ''}`;
+      favBtn.title = 'Toggle Favorite';
+      favBtn.textContent = isFav ? '★' : '☆';
+      favBtn.onclick = (e) => toggleFavorite(ch.url, e);
+
+      li.appendChild(img);
+      li.appendChild(info);
+      li.appendChild(favBtn);
+      fragment.appendChild(li);
+    });
+
+    channelListEl.appendChild(fragment);
+  }
+
+  function updateActiveHighlight(idx) {
+    if (activeItemEl) {
+      activeItemEl.classList.remove('active');
+    }
+    const target = channelListEl.querySelector(`.channel-item[data-index="${idx}"]`);
+    if (target) {
+      target.classList.add('active');
+      activeItemEl = target;
+      const listTop = channelListEl.scrollTop;
+      const listBottom = listTop + channelListEl.clientHeight;
+      const itemTop = target.offsetTop - channelListEl.offsetTop;
+      const itemBottom = itemTop + target.offsetHeight;
+
+      if (itemTop < listTop) {
+        channelListEl.scrollTop = itemTop;
+      } else if (itemBottom > listBottom) {
+        channelListEl.scrollTop = itemBottom - channelListEl.clientHeight;
+      }
+    }
+  }
+
+  function selectAndPlayByIndex(index) {
+    if (index >= 0 && index < filteredChannels.length) {
+      currentIndex = index;
+      playChannel(filteredChannels[currentIndex], true, currentIndex);
+      releaseKeyboardFocus();
+    }
+  }
+
+  function toggleFavorite(url, event) {
+    event.stopPropagation();
+    updateFavoriteStatus(url);
+    releaseKeyboardFocus();
+  }
+
+  function toggleCurrentChannelFavorite() {
+    if (currentPlayingChannel) {
+      updateFavoriteStatus(currentPlayingChannel.url);
+    }
+    releaseKeyboardFocus();
+  }
+
+  function updateFavoriteStatus(url) {
+    const index = favorites.indexOf(url);
+    if (index > -1) {
+      favorites.splice(index, 1);
+    } else {
+      favorites.push(url);
+    }
+    localStorage.setItem('iptv_favorites', JSON.stringify(favorites));
+    
+    if (currentPlayingChannel && currentPlayingChannel.url === url) {
+      const isFav = favorites.includes(url);
+      playerFavBtn.textContent = isFav ? '★' : '☆';
+      playerFavBtn.classList.toggle('favorited', isFav);
+    }
+
+    const starButtons = channelListEl.querySelectorAll('.fav-btn');
+    starButtons.forEach((btn) => {
+      const idx = parseInt(btn.parentElement.dataset.index, 10);
+      if (filteredChannels[idx] && filteredChannels[idx].url === url) {
+        const isFavNow = favorites.includes(url);
+        btn.textContent = isFavNow ? '★' : '☆';
+        btn.classList.toggle('favorited', isFavNow);
+      }
+    });
+
+    if (showOnlyFavorites) {
+      filterChannels();
+    }
+  }
+
+  function toggleFavoriteFilter() {
+    showOnlyFavorites = !showOnlyFavorites;
+    syncFavFilterIcon();
+    filterChannels();
+    releaseKeyboardFocus();
+  }
+
+  function filterChannels() {
+    const query = searchInput.value.toLowerCase().trim();
+    
+    filteredChannels = allChannels.filter(ch => {
+      const matchesSearch = ch.name.toLowerCase().includes(query) || ch.group.toLowerCase().includes(query);
+      const matchesFav = showOnlyFavorites ? favorites.includes(ch.url) : true;
+      return matchesSearch && matchesFav;
+    });
+    
+    renderChannels(filteredChannels);
+    channelCountEl.textContent = `Showing: ${filteredChannels.length} channels`;
+
+    if (currentPlayingChannel) {
+      const foundIdx = filteredChannels.findIndex(ch => ch._id === currentPlayingChannel._id);
+      if (foundIdx !== -1) {
+        currentIndex = foundIdx;
+        updateActiveHighlight(foundIdx);
+      } else {
+        currentIndex = -1;
+      }
+    }
+  }
+
+  function playDirectStream(streamUrl) {
+    if (hls) {
+      hls.destroy();
+      hls = null;
+    }
+    video.src = streamUrl;
+    video.play().catch(e => {
+      console.log("Autoplay blocked or stream error:", e);
+      hideSpinner();
+      if (e && e.name === "NotAllowedError") {
+        showStatusMessage("Click Play on video to start stream", 3500);
+      }
+    });
+  }
+
+  function playChannel(channel, shouldScroll = true, explicitIndex = null) {
+    if (!channel) return;
+    currentPlayingChannel = channel;
+    hideStatusMessage();
+    showSpinner();
+
+    const targetIdx = explicitIndex !== null
+      ? explicitIndex
+      : filteredChannels.findIndex(ch => ch._id === channel._id);
+
+    if (targetIdx !== -1) {
+      currentIndex = targetIdx;
+      if (shouldScroll) {
+        updateActiveHighlight(targetIdx);
+      }
+    }
+
+    const isFav = favorites.includes(channel.url);
+    playerFavBtn.textContent = isFav ? '★' : '☆';
+    playerFavBtn.classList.toggle('favorited', isFav);
+
+    nowPlayingEl.textContent = `Playing: ${channel.name}`;
+    nowPlayingEl.classList.remove('fade-out');
+    
+    clearTimeout(nowPlayingTimeout);
+    nowPlayingTimeout = setTimeout(() => {
+      nowPlayingEl.classList.add('fade-out');
+    }, 3000);
+
+    const streamUrl = channel.url;
+
+    if (typeof startAdScheduler === "function") {
+      startAdScheduler();
+    }
+
+    if (Hls.isSupported() && streamUrl.toLowerCase().includes('.m3u8')) {
+      if (hls) {
+        hls.destroy();
+      }
+      hls = new Hls();
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, function () {
+        video.play().catch(e => {
+          console.log("Autoplay blocked:", e);
+          hideSpinner();
+          if (e && e.name === "NotAllowedError") {
+            showStatusMessage("Click Play on video to start stream", 3500);
+          }
+        });
+      });
+      hls.on(Hls.Events.ERROR, function (event, data) {
+        if (data.fatal) {
+          hideSpinner();
+          showStatusMessage("Stream error or CORS blocked", 4000);
+        }
+      });
+    } else {
+      playDirectStream(streamUrl);
+    }
+  }
+
+  window.onload = () => {
+    syncFavFilterIcon();
+    fetchAndParseM3U(PLAYLIST_URL);
+    if (typeof startAdScheduler === "function") {
+      startAdScheduler();
+    }
+  };
+</script>
+<script>
+const AD_CONFIG = {
+    intervalMinutes: 1,            
+    displayDurationSeconds: 10,    
+    adsList: [
+        {
+            image: "image/ad.jpg",
+            link: "https://3052654247286.gumroad.com/l/tibfqd?_gl=1*1kt4nd4*_ga*NDA0MDY0MjQzLjE3ODk4NzIyMDg.*_ga_6LJN6D94N6*czE3OTQ2MzU5NDgkbzQkZzEkdDE3OTQ2MzYwMzIkajQ5JGwwJGgw"
+        }
+    ]
+};
+
+let adIntervalTimer = null;
+let countdownTimer = null;
+let currentAdIndex = 0;
+
+const adOverlay = document.getElementById('adOverlay');
+const adCountdown = document.getElementById('adCountdown');
+const adLink = document.getElementById('adLink');
+const adImage = document.getElementById('adImage');
+
+function startAdScheduler() {
+    stopAdScheduler();
+    const intervalMs = AD_CONFIG.intervalMinutes * 60 * 1000;
+    adIntervalTimer = setInterval(() => {
+        showBannerAd();
+    }, intervalMs);
+}
+
+function showBannerAd() {
+    if (!AD_CONFIG.adsList.length || !adOverlay || !adImage || !adLink) return;
+
+    const ad = AD_CONFIG.adsList[currentAdIndex];
+    adImage.src = ad.image;
+    adLink.href = ad.link;
+
+    currentAdIndex = (currentAdIndex + 1) % AD_CONFIG.adsList.length;
+
+    let timeLeft = AD_CONFIG.displayDurationSeconds;
+    if (adCountdown) adCountdown.innerText = timeLeft;
+    adOverlay.classList.remove('hidden');
+
+    clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+        timeLeft--;
+        if (adCountdown) adCountdown.innerText = timeLeft;
+
+        if (timeLeft <= 0) {
+            hideBannerAd();
+        }
+    }, 1000);
+}
+
+function stopAdScheduler() {
+    clearInterval(adIntervalTimer);
+    hideBannerAd();
+}
+</script>
+</body>
+</html>
