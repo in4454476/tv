@@ -15,6 +15,7 @@ let nowPlayingTimeout = null;
 let volumeTimeout = null;
 let statusTimeout = null;
 let activeItemEl = null;
+let wakeLock = null;
 
 const video = document.getElementById('videoPlayer');
 const playerSection = document.getElementById('playerSection');
@@ -28,6 +29,30 @@ const playerFavBtn = document.getElementById('playerFavBtn');
 const searchInput = document.getElementById('searchInput');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
 const favFilterBtn = document.getElementById('favFilterBtn');
+
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator && !wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => {
+        wakeLock = null;
+      });
+    }
+  } catch (err) {
+    // Wake lock request failed or not supported
+  }
+}
+
+async function releaseWakeLock() {
+  if (wakeLock) {
+    try {
+      await wakeLock.release();
+      wakeLock = null;
+    } catch (err) {
+      // Ignore release errors
+    }
+  }
+}
 
 function shuffleArray(array) {
   for (let i = array.length - 1; i > 0; i--) {
@@ -57,11 +82,31 @@ function hideStatusMessage() {
 video.addEventListener('loadstart', showSpinner);
 video.addEventListener('waiting', showSpinner);
 video.addEventListener('stalled', showSpinner);
-video.addEventListener('playing', () => { hideSpinner(); hideStatusMessage(); });
+video.addEventListener('playing', () => {
+  hideSpinner();
+  hideStatusMessage();
+  requestWakeLock();
+});
+video.addEventListener('play', () => {
+  requestWakeLock();
+});
+video.addEventListener('pause', () => {
+  releaseWakeLock();
+});
+video.addEventListener('ended', () => {
+  releaseWakeLock();
+});
 video.addEventListener('canplay', hideSpinner);
 video.addEventListener('error', () => {
   hideSpinner();
+  releaseWakeLock();
   if (video.src) showStatusMessage("Stream unavailable or blocked", 3500);
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !video.paused && !video.ended) {
+    requestWakeLock();
+  }
 });
 
 function syncFavFilterIcon() {
@@ -240,7 +285,10 @@ function appendChannelBatch() {
     img.src = ch.logo || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36"><rect width="36" height="36" fill="%23222"/><text x="50%" y="55%" font-size="12" fill="%23aaa" text-anchor="middle">TV</text></svg>';
     img.loading = 'lazy';
     img.decoding = 'async';
-    img.onerror = function() { this.onerror = null; this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36"><rect width="36" height="36" fill="%23222"/><text x="50%" y="55%" font-size="12" fill="%23aaa" text-anchor="middle">TV</text></svg>'; };
+    img.onerror = function() {
+      this.onerror = null;
+      this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36"><rect width="36" height="36" fill="%23222"/><text x="50%" y="55%" font-size="12" fill="%23aaa" text-anchor="middle">TV</text></svg>';
+    };
 
     const info = document.createElement('div');
     info.className = 'overflow-hidden flex-grow-1';
@@ -324,7 +372,7 @@ function updateFavoriteStatus(url) {
   if (index > -1) favorites.splice(index, 1);
   else favorites.push(url);
   localStorage.setItem('iptv_favorites', JSON.stringify(favorites));
-  
+
   if (currentPlayingChannel && currentPlayingChannel.url === url) {
     const isFav = favorites.includes(url);
     playerFavBtn.textContent = isFav ? '★' : '☆';
@@ -358,7 +406,7 @@ function filterChannels() {
     const matchesFav = showOnlyFavorites ? favorites.includes(ch.url) : true;
     return matchesSearch && matchesFav;
   });
-  
+
   renderChannels();
   channelCountEl.textContent = `Showing: ${filteredChannels.length} channels`;
 
@@ -426,8 +474,8 @@ function playChannel(channel, shouldScroll = true, explicitIndex = null) {
 
 // Banner Ads Logic
 const AD_CONFIG = {
-  intervalMinutes: 1,            
-  displayDurationSeconds: 10,    
+  intervalMinutes: 1,
+  displayDurationSeconds: 10,
   adsList: [
     {
       image: "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEha13scaPuuz4m1Ey5kTaalY7TZ0GCMTTKDGEOPr7YUvzp8sggUPATKz2UmDvy0US_YTKEBgXcSqRp5zIvTi6-80fJCADWhTSxfbRFaJTkLFWXHWUViUIx-uUv6SO0RnwTFXZE6JBxUSzGDs6LW3vt6OeoyTMlFsuKWBezeTnFI__QY0y5FAd_M_v3VGMss/s2624/ad.jpg",
