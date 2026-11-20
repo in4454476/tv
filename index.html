@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web IPTV Player</title>
+<!-- Bootstrap 5 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<!-- Custom CSS -->
+<link rel="stylesheet" href="style.css">
+<!-- HLS.js for .m3u8 live streams -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body class="d-flex flex-column text-white">
+
+<!-- Header -->
+<header class="bg-maroon px-3 py-2 shadow d-flex align-items-center gap-2 flex-shrink-0">
+  <div class="position-relative flex-grow-1">
+    <input type="text" id="searchInput" class="form-control rounded-pill bg-white text-dark pe-4 border-0 shadow-none" placeholder="Search channels..." oninput="handleSearchInput()">
+    <button type="button" class="btn btn-sm text-secondary position-absolute clear-btn p-0" id="clearSearchBtn" onclick="clearSearch()" title="Clear Search">✕</button>
+  </div>
+  <button type="button" class="btn rounded-circle text-white d-inline-flex align-items-center justify-content-center p-0 fav-circle fs-5" id="favFilterBtn" onclick="toggleFavoriteFilter()" title="Favorites">☆</button>
+</header>
+
+<!-- Main Container -->
+<div class="main-container d-flex flex-grow-1 overflow-hidden w-100">
+  
+  <!-- Video Player Area -->
+  <div class="player-section flex-grow-1 d-flex flex-column bg-black position-relative justify-content-center align-items-center overflow-hidden" id="playerSection">
+    <div class="now-playing position-absolute bg-dark bg-opacity-75 px-2 py-1 rounded small text-truncate pe-none" id="nowPlaying">Select a channel to play</div>
+    <div class="position-absolute top-50 start-50 translate-middle bg-dark bg-opacity-75 border border-maroon px-3 py-2 rounded fw-bold fs-5 pe-none opacity-0" id="volumeOsd" style="z-index:40; transition: opacity .2s;">Volume: 100%</div>
+    
+    <!-- Bootstrap Spinner -->
+    <div class="spinner-border text-danger position-absolute top-50 start-50 translate-middle d-none" id="waitingSpinner" style="width: 3rem; height: 3rem; z-index: 25;" role="status"></div>
+    
+    <div class="position-absolute start-50 translate-middle-x bg-dark bg-opacity-75 border border-maroon px-3 py-1 rounded small text-center d-none pe-none" id="streamStatus" style="top: 52px; z-index: 24; max-width: 85%;"></div>
+    
+    <!-- Player Quick Buttons -->
+    <div class="position-absolute d-flex gap-2" style="top: 12px; right: 12px; z-index: 10;">
+      <button type="button" class="btn rounded-circle text-white d-flex align-items-center justify-content-center p-0 player-btn" id="playerFavBtn" onclick="toggleCurrentChannelFavorite()" title="Toggle Favorite">☆</button>
+      <button type="button" class="btn rounded-circle text-white d-flex align-items-center justify-content-center p-0 player-btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+    </div>
+
+    <!-- On-Screen Prev/Next Controls -->
+    <div class="osd-controls position-absolute top-0 start-0 w-100 h-100 d-flex justify-content-between align-items-center px-3">
+      <button type="button" class="btn rounded-circle text-white d-flex align-items-center justify-content-center osd-btn fs-5" onclick="playPreviousChannel()" title="Previous Channel">❮</button>
+      <button type="button" class="btn rounded-circle text-white d-flex align-items-center justify-content-center osd-btn fs-5" onclick="playNextChannel()" title="Next Channel">❯</button>
+    </div>
+
+    <video id="videoPlayer" class="w-100 h-100" controls autoplay playsinline ondblclick="toggleFullscreen()"></video>
+
+    <!-- Banner Ad Overlay -->
+    <div id="adOverlay" class="ad-overlay position-absolute start-50 translate-middle-x d-none">
+      <div class="position-relative w-100 d-flex justify-content-center">
+        <a id="adLink" class="d-block w-100" href="#" target="_blank" rel="noopener noreferrer">
+          <img id="adImage" class="w-100 rounded shadow" src="" alt="Advertisement">
+        </a>
+        <span class="position-absolute top-0 start-0 m-1 bg-dark bg-opacity-75 text-white px-2 rounded small fw-bold pe-none" id="adCountdown">10</span>
+        <button type="button" class="btn rounded-circle text-white p-0 d-flex align-items-center justify-content-center position-absolute top-0 end-0 m-1 ad-close-btn" onclick="hideBannerAd(event)" title="Close Ad">×</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Channel List Sidebar -->
+  <div class="sidebar border-start border-secondary d-flex flex-column flex-shrink-0">
+    <div class="px-3 py-2 small bg-dark text-light border-bottom border-secondary" id="channelCount">Loading channels...</div>
+    <ul class="channel-list list-unstyled m-0 flex-grow-1" id="channelList"></ul>
+  </div>
+</div>
+
+<!-- External Ad Config (Optional) -->
+<script src="image/ads.js"></script>
+<!-- Main App Script -->
+<script src="app.js"></script>
+</body>
+</html>

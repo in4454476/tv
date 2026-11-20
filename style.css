@@ -1,0 +1,134 @@
+:root {
+  --primary: #800000;
+  --primary-hover: #a00000;
+  --gold: #fbbf24;
+}
+
+body {
+  background-color: #121212;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.bg-maroon { background-color: var(--primary) !important; }
+.border-maroon { border-color: var(--primary) !important; }
+
+/* Search & Fav Filter */
+.clear-btn {
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  z-index: 5;
+}
+
+.fav-circle {
+  width: 38px;
+  height: 38px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.fav-circle.active {
+  background: #fff;
+  color: var(--primary) !important;
+  border-color: var(--gold);
+}
+
+/* Video & Overlays */
+.player-section { min-height: 240px; }
+video { object-fit: contain; }
+
+.now-playing {
+  top: 12px;
+  left: 12px;
+  border-left: 3px solid var(--primary);
+  max-width: 65%;
+  transition: opacity 0.4s;
+  z-index: 10;
+}
+
+.now-playing.fade-out { opacity: 0; }
+
+.player-btn {
+  width: 36px;
+  height: 36px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.player-btn:hover, .osd-btn:hover { background: var(--primary); }
+.favorited { color: var(--gold) !important; }
+
+.osd-controls {
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.player-section:hover .osd-controls,
+.player-section:active .osd-controls { opacity: 1; }
+
+.osd-btn {
+  pointer-events: auto;
+  width: 48px;
+  height: 48px;
+  background: rgba(0, 0, 0, 0.65);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Ad Overlay */
+.ad-overlay {
+  bottom: 48px;
+  width: min(94%, 728px);
+  z-index: 30;
+}
+
+.ad-overlay img {
+  max-height: 110px;
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.88);
+  border: 2px solid var(--primary);
+}
+
+.ad-close-btn {
+  width: 24px;
+  height: 24px;
+  background: var(--primary);
+}
+
+/* Sidebar & Fast APK List Rendering */
+.sidebar {
+  width: 350px;
+  background-color: #1e1e1e;
+}
+
+.channel-list {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.channel-item {
+  cursor: pointer;
+  border-bottom: 1px solid #2a2a2a;
+  content-visibility: auto;
+  contain-intrinsic-size: 56px;
+}
+
+.channel-item:hover, .channel-item.active {
+  background-color: var(--primary) !important;
+}
+
+.channel-item img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+@media (max-width: 900px) {
+  .main-container { flex-direction: column; }
+  .player-section { height: 42vh; flex: none !important; }
+  .sidebar { width: 100%; height: 58vh; border-start: 0 !important; border-top: 1px solid #333; }
+  .ad-overlay img { max-height: 70px; }
+}
